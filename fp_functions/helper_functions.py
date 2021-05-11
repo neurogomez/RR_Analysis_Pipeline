@@ -392,3 +392,106 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
         signals = signals_tone
 
     return signals, t
+
+def offer_tone_aligned_fp_traces(channel, side, condition, data_fp, data_rr, trigger_mode, split):
+    offer_tone_alignments = ['offer_tone_0','offer_tone_20', 'offer_tone_80', 'offer_tone_100']
+    time_window = 99
+
+    if split == 'none':
+        signals_aligned = np.zeros([0, time_window*2])
+    if split == 'restaurant':
+        signals_aligned = {'R1':np.zeros([0, time_window*2]), 'R2':np.zeros([0, time_window*2]),
+                        'R3': np.zeros([0, time_window*2]), 'R4': np.zeros([0, time_window*2])}
+    if split == 'offer_tone':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+    if split == 'all':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+
+    for offer in offer_tone_alignments:
+
+        if split == 'none':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, split)
+            signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+        if split == 'restaurant':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, split)
+            rest = ['R1','R2', 'R3', 'R4']
+            for rr in rest:
+                signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+        if split == 'offer_tone':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, split)
+            signals_aligned[offer] = signals_tone[offer]
+
+        if split == 'all':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, 'restaurant')
+            signals_aligned[offer] = signals_tone
+
+
+    return signals_aligned, t
+
+def grab_fp_traces_all_conditions(alignment, channel, side, data_fp, data_rr, trigger_mode, split):
+    conditions = ['rewarded','reject','quit']
+    offer_tone_alignments = ['offer_tone_0','offer_tone_20', 'offer_tone_80', 'offer_tone_100']
+    time_window = 99
+
+    if split == 'none':
+            signals_aligned = np.zeros([0, time_window*2])
+    if split == 'restaurant':
+        signals_aligned = {'R1':np.zeros([0, time_window*2]), 'R2':np.zeros([0, time_window*2]),
+                        'R3': np.zeros([0, time_window*2]), 'R4': np.zeros([0, time_window*2])}
+    if split == 'offer_tone':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+    if split == 'all':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+
+    for condition_idx, condition in enumerate(conditions):
+
+        if alignment == 'offer_tone':
+
+            for offer in offer_tone_alignments:
+
+                if split == 'none':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                    signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+                if split == 'restaurant':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                    rest = ['R1','R2', 'R3', 'R4']
+                    for rr in rest:
+                        signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+                if split == 'offer_tone':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                    signals_aligned[offer] = signals_tone[offer]
+
+                if split == 'all':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, 'restaurant')
+                    signals_aligned[offer] = signals_tone
+
+        if alignment != 'offer_tone':
+            if split == 'none':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+            if split == 'restaurant':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                rest = ['R1','R2', 'R3', 'R4']
+                for rr in rest:
+                    signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+            if split == 'offer_tone':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, split)
+                for offer in offer_tone_alignments:
+                    signals_aligned[offer] = signals_tone[offer]
+
+            if split == 'all':
+                for offer in offer_tone_alignments:
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, 'restaurant')
+                    signals_aligned[offer] = signals_tone
+
+    return signals_aligned, t

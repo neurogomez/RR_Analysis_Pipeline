@@ -141,9 +141,6 @@ def get_data_rr(fp_folder, behavior_folder, animal, day): #, alignment, channel,
     - need to change get data directories functions for different folders
     -
     '''
-    # Base Folder
-    # fp_folder = '/Volumes/Wilbrecht_file_server/LauraG/RR_FP_Data/RRM004'
-    # behavior_folder = '/Volumes/Wilbrecht_file_server/LauraG/RR_Behavior_Data/RRM004'
 
     (rr_file, fp_file, fp_time_stamps) = get_data_directories(fp_folder, behavior_folder, animal, day)
 
@@ -165,10 +162,47 @@ def get_data_rr(fp_folder, behavior_folder, animal, day): #, alignment, channel,
     print(f"Percentage of No Offer Rejections: {pct_no_offer_rejects}")
     dt_choice = {'dt_accept':dt_accept, 'dt_reject':dt_reject}
 
-    return dt_choice, reject_events,accept_and_rewarded_events,num_accept_rewarded_events,quit_events, num_quit_events,pct_no_offer_rejects, dt_reject, dt_accept,data_rr, data_fp
+    behaviour_summary = {'reject_events':reject_events,
+    'accept_and_rewarded_events':accept_and_rewarded_events,
+    'num_accept_rewarded_events':num_accept_rewarded_events,
+    'quit_events': quit_events,
+    'num_quit_events': num_quit_events,
+    'pct_no_offer_rejects': pct_no_offer_rejects,
+    'dt_choice': dt_choice}
 
     # signals, t = grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split)
     # return signals, t, dt_choice
+    return behaviour_summary,data_rr, data_fp
+
+def get_fp_aligned_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split):
+    '''
+    parameters
+    alignment: fp traces aligned to this time stamp
+        options -> 'offer_tone_x', 'entry', 'accept', 'exit', 'offer_tone'
+            - if looking at condition = reject, need to align to entry
+    channel: recording channel for FP
+        options -> 'green', 'red', 'control'
+    side: hemisphere recording from
+        options -> 'left', 'right'
+    condition: condition to plot
+        options -> 'rewarded', 'reject', 'quit', 'all'
+    trigger_mode: triggering mode for neurophotometrics system
+        options -> 'TRIG1', 'TRIG3'
+    split: split fp_traces into different sub-groups
+        options -> 'restaurant', 'offer_tone', 'none', 'all'
+    '''
+
+    if condition == 'all':
+        signals, t = grab_fp_traces_all_conditions(alignment, channel, side, data_fp, data_rr, trigger_mode, split)
+    if condition != 'all':
+        if alignment == 'offer_tone':
+            signals, t = offer_tone_aligned_fp_traces(channel, side, condition, data_fp, data_rr, trigger_mode, split)
+        if alignment != 'offer_tone':
+            if split != 'all':
+                signals, t = grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split)
+            if split == 'all':
+                print('ALL split not possible')
+    return signals, t
 
 def get_fp_plots_travis(animal, day, alignment, sg, side, condition, split=False, plot_flag='mean'):
     fp_folder = '/Volumes/Wilbrecht_file_server/Restaurant Row/Data/fp_data/Cohort 3 D1'
@@ -220,5 +254,5 @@ def get_fp_plots_travis(animal, day, alignment, sg, side, condition, split=False
     '''
 
     # condition can be "reject","rewarded" or "quit"
-    plot_trace_probs(alignment, sg, side, condition, data_fp,
+    plot_travis_fp(alignment, sg, side, condition, data_fp,
                      data_rr, split, plot_flag)

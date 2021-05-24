@@ -9,6 +9,7 @@ from fp_functions.plotting_fp import *
 def load_behavior(path):
     '''
     function for behaviour file collected alone - no FP data
+    - different file naming structure: see behaviour notebook for RM011,RM022,RM025
     '''
     results_data = pd.DataFrame(columns=['animal_id','day',\
                                          'pellets_ph','epoch',\
@@ -136,9 +137,7 @@ def load_behavior_FP(path):
 
 def get_data_rr(fp_folder, behavior_folder, animal, day): #, alignment, channel,trigger_mode, side, condition, split):
     '''
-    TO DO :
-    - add base folder to function inputs
-    - need to change get data directories functions for different folders
+    main function for grabbing beahviour summary, data_rr and data_fp
     -
     '''
 
@@ -174,8 +173,10 @@ def get_data_rr(fp_folder, behavior_folder, animal, day): #, alignment, channel,
     # return signals, t, dt_choice
     return behaviour_summary,data_rr, data_fp
 
-def get_fp_aligned_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split):
+def get_fp_aligned_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, split):
     '''
+    Calls grab_fp_Traces to perform different splits of the data
+    ----
     parameters
     alignment: fp traces aligned to this time stamp
         options -> 'offer_tone_x', 'entry', 'accept', 'exit', 'offer_tone'
@@ -193,18 +194,23 @@ def get_fp_aligned_traces(alignment, channel, side, condition, data_fp, data_rr,
     '''
 
     if condition == 'all':
-        signals, t = grab_fp_traces_all_conditions(alignment, channel, side, data_fp, data_rr, trigger_mode, split)
+        signals, t = grab_fp_traces_all_conditions(alignment, channel, side, data_fp, data_rr, trigger_mode,baseline_method, split)
     if condition != 'all':
         if alignment == 'offer_tone':
-            signals, t = offer_tone_aligned_fp_traces(channel, side, condition, data_fp, data_rr, trigger_mode, split)
+            signals, t = offer_tone_aligned_fp_traces(channel, side, condition, data_fp, data_rr, trigger_mode,baseline_method, split)
         if alignment != 'offer_tone':
             if split != 'all':
-                signals, t = grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split)
+                signals, t = grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, split)
             if split == 'all':
                 print('ALL split not possible')
     return signals, t
 
 def get_fp_plots_travis(animal, day, alignment, sg, side, condition, split=False, plot_flag='mean'):
+    '''
+    function for plotting travis' data 
+    '''
+
+
     fp_folder = '/Volumes/Wilbrecht_file_server/Restaurant Row/Data/fp_data/Cohort 3 D1'
     behavior_folder = '/Volumes/Wilbrecht_file_server/Restaurant Row/Data/rr_data/Cohort 3 D1'
 

@@ -9,13 +9,30 @@ from matplotlib import rc
 from fp_functions.helper_functions import *
 import seaborn as sns
 
-def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condition):
+def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condition, baseline_method):
     '''
-    FP Plotting Function for plotting New Data
+    FP Plotting Function for New Data
+    split:  'none': average of all traces
+            'seperate_all': split into 16 plots: 4 RR and 4 Offer Tones
+            'seperate_restaurant': splits into 4 restaurant plots seperated by 4 offer tones
+            'all_offer_tone': 1 plot split into 4 offer tones
+            'all_restaurant': 1 plot split into 4 restaurants
+            'offer_tone': 4 plots split by offer tones
+            'restaurant': 4 plots split by restaurant
+            ''
+    condition:
     '''
 
     sns.set_theme(style="white", context="notebook", palette='deep', font_scale=1.25)
-    color_idx = ['m', 'g', 'b', 'r']
+    pal = sns.color_palette('deep')
+    color_idx = pal.as_hex()
+
+    if baseline_method == 'med_filter':
+        y_title = 'FP Signal (a.u)'
+    else:
+        # signals = signals*1000
+        # y_title = 'dF/F * 1000'
+        y_title = 'FP Signal Z-Score: (a.u)'
 
     if split == 'none':
         plt.rcParams["figure.figsize"] = (7, 5)  # (w, h)
@@ -29,7 +46,7 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
         axes.plot(t, mean_trace)
         axes.fill_between(t, mean_trace + SEM_trace,mean_trace - SEM_trace, alpha=0.5)
         axes.set_xlabel('Time (s)')
-        axes.set_ylabel('FP Signal (a.u)')
+        axes.set_ylabel(y_title)
 
         ymin, ymax = axes.get_ylim()
         axes.plot([0, 0], [ymin, ymax], '--k')
@@ -38,6 +55,71 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
         plt.suptitle(fig_title, fontweight="bold")
         plt.rcParams["figure.figsize"] = (7, 5)  # (w, h)
         plt.tight_layout()
+
+    if split == 'seperate_all':
+        sns.set_theme(style="white", context="notebook", palette='deep', font_scale=2.5)
+        prob = [0, 20, 80, 100]
+        ybounds = 0.4
+        pal = sns.color_palette('deep')
+        color_idx = pal.as_hex()
+        plt.rcParams["figure.figsize"] = (30, 25)  # (w, h)
+        fig, axes = plt.subplots(4, 4)
+        ax_index = [[(0, 0), (0, 1), (0, 2), (0, 3)],
+            [(1, 0), (1, 1), (1, 2), (1, 3)],
+           [(2, 0), (2, 1), (2, 2), (2, 3)],
+           [(3, 0), (3, 1), (3, 2), (3, 3)]]
+
+
+        for key in signals:
+            prob_idx = list(signals.keys()).index(key)
+            for rr in signals[key]:
+                rest_idx = list(signals[key].keys()).index(rr)
+                mean_trace = np.mean(signals[key][rr], axis=0)
+                SEM_trace = np.std(signals[key][rr], axis=0)/np.sqrt(len(signals[key][rr]))
+
+                axes[ax_index[prob_idx][rest_idx]].plot(t, mean_trace, color = color_idx[rest_idx])
+                axes[ax_index[prob_idx][rest_idx]].fill_between(t, mean_trace + SEM_trace,mean_trace - SEM_trace, color = color_idx[rest_idx], alpha=0.5)
+
+                axes[ax_index[prob_idx][rest_idx]].set_xlabel('Time (s)')
+                axes[ax_index[prob_idx][rest_idx]].set_ylabel(y_title)
+                axes[ax_index[prob_idx][rest_idx]].set_title(rr + ' ' + key + '%')
+                axes[ax_index[prob_idx][rest_idx]].plot([0, 0], [-ybounds, ybounds], '--k')
+                axes[ax_index[prob_idx][rest_idx]].set_ylim(-ybounds, ybounds)
+
+        fig_title = f"Alignment: {alignment}, Hemi: {side}, Signal: {channel}, Condition: {condition}"
+        plt.suptitle(fig_title, fontweight="bold")
+        plt.tight_layout()
+
+    if split == 'seperate_restaurant':
+            plt.rcParams["figure.figsize"] = (12, 10)  # (w, h)
+            fig, axes = plt.subplots(2, 2)
+            ax_index = [(0, 0), (0, 1), (1, 0), (1, 1)]
+            ybounds = 0.6
+            prob = [0, 20, 80, 100]
+
+            sns.set_theme(style="white", context="notebook", palette='deep', font_scale=1.25)
+            pal = sns.color_palette('deep')
+            color_idx = pal.as_hex()
+
+            mean_trace = {'R1':[], 'R2':[],'R3':[],'R4':[]}
+            SEM_trace = {'R1':[], 'R2':[],'R3':[],'R4':[]}
+
+            for key in signals:
+                prob_idx = list(signals.keys()).index(key)
+                for rr in signals[key]:
+                    rest_idx = list(signals[key].keys()).index(rr)
+                    mean_trace = np.mean(signals[key][rr], axis=0)
+                    SEM_trace = np.std(signals[key][rr], axis=0)/np.sqrt(len(signals[key][rr]))
+
+                    axes[ax_index[rest_idx]].plot(t, mean_trace, color = color_idx[prob_idx],label=str(prob[prob_idx]) + '% tone')
+                    axes[ax_index[rest_idx]].fill_between(t, mean_trace + SEM_trace,mean_trace - SEM_trace, color = color_idx[prob_idx], alpha=0.25)
+
+                    axes[ax_index[rest_idx]].set_xlabel('Time (s)')
+                    axes[ax_index[rest_idx]].set_ylabel(y_title)
+                    axes[ax_index[rest_idx]].set_title(rr)
+                    axes[ax_index[rest_idx]].legend()
+                    axes[ax_index[rest_idx]].plot([0, 0], [-ybounds, ybounds], '--k')
+                    axes[ax_index[rest_idx]].set_ylim(-ybounds, ybounds)
 
     if split == 'all_offer_tone':
         plt.rcParams["figure.figsize"] = (7, 5)  # (w, h)
@@ -53,7 +135,7 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
             axes.plot(t, mean_trace, label=str(prob[prob_idx]) + '% tone')
             axes.fill_between(t, mean_trace + SEM_trace,mean_trace - SEM_trace, alpha=0.5)
         axes.set_xlabel('Time (s)')
-        axes.set_ylabel('FP Signal (a.u)')
+        axes.set_ylabel(y_title)
         ymin, ymax = axes.get_ylim()
         axes.plot([0, 0], [ymin, ymax], '--k')
         axes.legend()
@@ -77,7 +159,7 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
             axes.plot(t, mean_trace, label='R'+ str(rest[rest_idx]))
             axes.fill_between(t, mean_trace + SEM_trace,mean_trace - SEM_trace, alpha=0.5)
         axes.set_xlabel('Time (s)')
-        axes.set_ylabel('FP Signal (a.u)')
+        axes.set_ylabel(y_title)
         ymin, ymax = axes.get_ylim()
         axes.plot([0, 0], [ymin, ymax], '--k')
         axes.legend()
@@ -91,6 +173,7 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
         plt.rcParams["figure.figsize"] = (12, 10)  # (w, h)
         fig, axes = plt.subplots(2, 2)
         ax_index = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        ybounds = 0.4
 
         mean_trace = {'offer_tone_0':[], 'offer_tone_20':[],
                     'offer_tone_80':[], 'offer_tone_100': []}
@@ -104,8 +187,9 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
             axes[ax_index[offer_tone_idx]].plot(t, mean_trace[key],color_idx[offer_tone_idx], label=key)
             axes[ax_index[offer_tone_idx]].fill_between(t, mean_trace[key]+SEM_trace[key],
                                           mean_trace[key]-SEM_trace[key], color = color_idx[offer_tone_idx], alpha=0.5)
+            axes[ax_index[offer_tone_idx]].set_ylim(-ybounds, ybounds)
             axes[ax_index[offer_tone_idx]].set_xlabel('Time (s)')
-            axes[ax_index[offer_tone_idx]].set_ylabel('FP Signal (a.u)')
+            axes[ax_index[offer_tone_idx]].set_ylabel(y_title)
             axes[ax_index[offer_tone_idx]].set_title(key)
 #             axes[ax_index[offer_tone_idx]].legend()
 
@@ -120,6 +204,11 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
         plt.rcParams["figure.figsize"] = (12, 10)  # (w, h)
         fig, axes = plt.subplots(2, 2)
         ax_index = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        ybounds = 0.4
+
+        sns.set_theme(style="white", context="notebook", palette='deep', font_scale=1.25)
+        pal = sns.color_palette('deep')
+        color_idx = pal.as_hex()
 
         mean_trace = {'R1':[], 'R2':[],'R3':[],'R4':[]}
         SEM_trace = {'R1':[], 'R2':[],'R3':[],'R4':[]}
@@ -131,8 +220,9 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
             axes[ax_index[rr_idx]].plot(t, mean_trace[key],color_idx[rr_idx], label=key)
             axes[ax_index[rr_idx]].fill_between(t, mean_trace[key]+SEM_trace[key],
                                           mean_trace[key]-SEM_trace[key],color = color_idx[rr_idx], alpha=0.5)
+            axes[ax_index[rr_idx]].set_ylim(-ybounds, ybounds)
             axes[ax_index[rr_idx]].set_xlabel('Time (s)')
-            axes[ax_index[rr_idx]].set_ylabel('FP Signal (a.u)')
+            axes[ax_index[rr_idx]].set_ylabel(y_title)
             axes[ax_index[rr_idx]].set_title(key)
 #             axes[ax_index[rr_idx]].legend()
             ymin, ymax = axes[ax_index[rr_idx]].get_ylim()
@@ -141,8 +231,7 @@ def plot_trial_avg_FP_aligned(signals, t, split, alignment, side, channel, condi
         plt.suptitle(fig_title, fontweight="bold")
         plt.tight_layout()
 
-
-def plot_trace_probs(alignment, sg, side, condition, data_fp, data_rr, split, plot_flag):
+def plot_travis_fp(alignment, sg, side, condition, data_fp, data_rr, split, plot_flag):
     '''
     FP Plotting Function for plotting Travis's Data
     '''

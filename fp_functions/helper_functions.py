@@ -4,6 +4,8 @@ from scipy import signal
 import os
 import re
 
+from fp_functions.utils_albert import *
+
 def get_data_directories(fp_folder, behavior_folder, mouse_id, day):
     '''
     Get's the csv path to the time stamp, behaviour and FP file for a given mouse and day
@@ -276,7 +278,7 @@ def baseline_trace(trace):
     zscore_trace = trace_backsub/(np.std(med_filt))
     return zscore_trace
 
-def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode, split):
+def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigger_mode,baseline_method, split):
     '''
     parameters
     alignment: fp traces aligned to this time stamp
@@ -313,6 +315,7 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
     fp_flag = { 'TRIG1': {'control':1, 'green':6},
                 'TRIG3': {'control':1, 'green':2, 'red':4}}
     fp_flag = fp_flag[trigger_mode]
+    fp_flag_ctrl = 1
 
     if channel == 'control':
         side_channel = side +'_'+ 'green'
@@ -320,10 +323,26 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
         side_channel = side +'_'+ channel
 
     # Get FP Signal
-    signal_fp = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
-    signal_fp = baseline_trace(signal_fp)    # Baseline and z-score FP trace
-    signal_fp_ts = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values # get TS
-    signal_fp_ts = signal_fp_ts[~np.isnan(signal_fp_ts)]  # remove trailing nan
+    if baseline_method == 'med_filter':
+        # Travis Method
+        signal_fp = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
+        signal_fp = baseline_trace(signal_fp)    # Baseline and z-score FP trace
+        signal_fp_ts = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values # get TS
+        signal_fp_ts = signal_fp_ts[~np.isnan(signal_fp_ts)]  # remove trailing nan
+
+    else:
+        # Albert Method
+        rec_sig = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
+        iso_sig = data_fp.get(side_channel)[data_fp.flag == fp_flag_ctrl].values
+
+        iso_time = data_fp.time_stamps[data_fp.flag == fp_flag_ctrl].values
+        iso_time = iso_time[~np.isnan(iso_time)]
+        rec_time = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values
+        rec_time = rec_time[~np.isnan(rec_time)]
+
+        signal_fp = raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method, zscore=True)
+        signal_fp_ts = rec_time
+#         plt.plot(signal_fp)
 
     # Get Alignment Event Codes
     if alignment == 'reject':
@@ -333,7 +352,7 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
         alignment_event_codes = events.get(alignment) # get event codes of alignment events
 
     # Calculate time window for plotting FP data
-    FP_window_sz = 5  # number of seconds before and after event to plot FP data
+    FP_window_sz = 3  # number of seconds before and after event to plot FP data
     frame_interval = np.nanmean(np.diff(signal_fp_ts))/1000 # spacing between frames
     time_window = int(FP_window_sz/frame_interval) # Time window in units of "frames"
     # print(time_window)
@@ -377,6 +396,206 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
             # Sum Up Events in Prob Tone Array
             # t = np.arange(-time_window, time_window, 1)*frame_interval # time array for plotting
             tone_str = 'offer_tone_'+ str(prob)
+            signals_tone[tone_str] = np.concatenate((signals_tone[tone_str],traces_tone), 0)
+
+        # Sum Up Events in Restrnt Array
+        rr_str = 'R' + str(rr)
+        signals_rr[rr_str] = traces
+    t = np.arange(-time_window, time_window, 1)*frame_interval # time array for plotting
+    # Signals Array depending on split
+    if split == 'none':
+        signals = np.concatenate((signals_rr['R1'],signals_rr['R2'],signals_rr['R3'],signals_rr['R4']),0)
+    elif split == 'restaurant':
+        signals = signals_rr
+    elif split == 'offer_tone':
+        signals = signals_tone
+
+    return signals, t
+
+def offer_tone_aligned_fp_traces(channel, side, condition, data_fp, data_rr, trigger_mode,baseline_method, split):
+    offer_tone_alignments = ['offer_tone_0','offer_tone_20', 'offer_tone_80', 'offer_tone_100']
+    time_window = 59 #99
+
+    if split == 'none':
+        signals_aligned = np.zeros([0, time_window*2])
+    if split == 'restaurant':
+        signals_aligned = {'R1':np.zeros([0, time_window*2]), 'R2':np.zeros([0, time_window*2]),
+                        'R3': np.zeros([0, time_window*2]), 'R4': np.zeros([0, time_window*2])}
+    if split == 'offer_tone':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+    if split == 'all':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+
+    for offer in offer_tone_alignments:
+
+        if split == 'none':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, split)
+            signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+        if split == 'restaurant':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, split)
+            rest = ['R1','R2', 'R3', 'R4']
+            for rr in rest:
+                signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+        if split == 'offer_tone':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, split)
+            signals_aligned[offer] = signals_tone[offer]
+
+        if split == 'all':
+            signals_tone, t = grab_fp_traces(offer, channel, side, condition, data_fp, data_rr, trigger_mode, baseline_method, 'restaurant')
+            signals_aligned[offer] = signals_tone
+
+
+    return signals_aligned, t
+
+def grab_fp_traces_all_conditions(alignment, channel, side, data_fp, data_rr, trigger_mode,baseline_method, split):
+    conditions = ['rewarded','reject','quit']
+    offer_tone_alignments = ['offer_tone_0','offer_tone_20', 'offer_tone_80', 'offer_tone_100']
+    time_window = 59 # 99 for 5 sec
+
+    if split == 'none':
+            signals_aligned = np.zeros([0, time_window*2])
+    if split == 'restaurant':
+        signals_aligned = {'R1':np.zeros([0, time_window*2]), 'R2':np.zeros([0, time_window*2]),
+                        'R3': np.zeros([0, time_window*2]), 'R4': np.zeros([0, time_window*2])}
+    if split == 'offer_tone':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+    if split == 'all':
+        signals_aligned = {'offer_tone_0':[], 'offer_tone_20':[],
+                        'offer_tone_80': [], 'offer_tone_100': []}
+
+    for condition_idx, condition in enumerate(conditions):
+
+        if alignment == 'offer_tone':
+
+            for offer in offer_tone_alignments:
+
+                if split == 'none':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                    signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+                if split == 'restaurant':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                    rest = ['R1','R2', 'R3', 'R4']
+                    for rr in rest:
+                        signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+                if split == 'offer_tone':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                    signals_aligned[offer] = signals_tone[offer]
+
+                if split == 'all':
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, 'restaurant')
+                    signals_aligned[offer] = signals_tone
+
+        if alignment != 'offer_tone':
+            if split == 'none':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                signals_aligned = np.vstack([signals_aligned, signals_tone])
+
+            if split == 'restaurant':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                rest = ['R1','R2', 'R3', 'R4']
+                for rr in rest:
+                    signals_aligned[rr] = np.vstack([signals_aligned[rr], signals_tone[rr]])
+
+            if split == 'offer_tone':
+                signals_tone, t = grab_fp_traces(alignment, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, split)
+                for offer in offer_tone_alignments:
+                    signals_aligned[offer] = signals_tone[offer]
+
+            if split == 'all':
+                for offer in offer_tone_alignments:
+                    signals_tone, t = grab_fp_traces(offer, channel, side, conditions[condition_idx], data_fp, data_rr, trigger_mode, baseline_method, 'restaurant')
+                    signals_aligned[offer] = signals_tone
+
+    return signals_aligned, t
+
+def grab_fp_traces_matlabcsv(channel, side, condition, data_fp, data_rr, trigger_mode,baseline_method, split):
+    '''
+    Function for grabbing fp traces using csv generated by Matlab 'RR_bahviour_stat.m'
+    - see Wilbrecht_file_server/LauraG/RR_Analysis_MatLab
+    '''
+
+    outcome = {'rewarded':1, 'reward_available':2, 'reward_ommitted':3,
+               'quit':4, 'reject':5}
+    fp_flag = { 'TRIG1': {'control':1, 'green':6},
+                'TRIG3': {'control':1, 'green':2, 'red':4}}
+    fp_flag = fp_flag[trigger_mode]
+    fp_flag_ctrl = 1
+
+    offer_probs = [0,20,80,100]
+
+    if channel == 'control':
+        side_channel = side +'_'+ 'green'
+    else:
+        side_channel = side +'_'+ channel
+
+    # Get FP Signal
+    if baseline_method == 'med_filter':
+        # Travis Method
+        signal_fp = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
+        signal_fp = baseline_trace(signal_fp)    # Baseline and z-score FP trace
+        signal_fp_ts = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values # get TS
+        signal_fp_ts = signal_fp_ts[~np.isnan(signal_fp_ts)]  # remove trailing nan
+
+    else:
+        # Albert Method
+        rec_sig = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
+        iso_sig = data_fp.get(side_channel)[data_fp.flag == fp_flag_ctrl].values
+
+        iso_time = data_fp.time_stamps[data_fp.flag == fp_flag_ctrl].values
+        iso_time = iso_time[~np.isnan(iso_time)]
+        rec_time = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values
+        rec_time = rec_time[~np.isnan(rec_time)]
+
+        signal_fp = raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method, zscore=True)
+        signal_fp_ts = rec_time
+
+    #Get alignment code
+    outcome_event_code = outcome.get(condition)
+
+    # Calculate time window for plotting FP data
+    FP_window_sz = 3  # number of seconds before and after event to plot FP data
+    frame_interval = np.nanmean(np.diff(signal_fp_ts))/1000 # spacing between frames
+    time_window = int(FP_window_sz/frame_interval) # Time window in units of "frames"
+
+    signals_rr = {'R1':[], 'R2':[],'R3':[],'R4':[]} # intialize FP dict
+    signals_tone = {'offer_tone_0':np.zeros([0, time_window*2]), 'offer_tone_20':np.zeros([0, time_window*2]),
+                    'offer_tone_80': np.zeros([0, time_window*2]), 'offer_tone_100': np.zeros([0, time_window*2])}
+
+    for rr in [1, 2, 3, 4]:
+        traces = np.zeros([0, time_window*2])
+
+        condition_event_aligned = data_rr.offer_tone_ts[
+            (data_rr.restaurant == rr) & (data_rr.outcome == outcome_event_code)]
+        condition_event_idx_aligned = condition_event_aligned.index.tolist()
+        condition_event_ts_aligned = condition_event_aligned.values
+
+        for prob in [1, 2, 3, 4]:
+            traces_tone = np.zeros([0, time_window*2])
+            if len(condition_event_ts_aligned) < 1:
+                print(f'Restaurant {rr} has no traces for '+condition+f' condition at probability tone {prob}')
+                traces = np.zeros([0, time_window*2]) # avoid error
+                continue # skips the for loop
+
+            # Stack Traces of designated window sz for each condition_event_aligned
+            for i in np.arange(0, len(condition_event_ts_aligned), 1):
+                if data_rr.offer_tone[condition_event_idx_aligned[i]] == prob:
+                    ts_rr = condition_event_ts_aligned[i] # Time value of event from computer clock -> rr_data
+                    ts_fp = np.argmax(signal_fp_ts > ts_rr)# Index of timestamp that coincides with event timestamp --> fp_data
+                    if (ts_fp > time_window) & ((ts_fp+time_window) < len(signal_fp)): #check to make sure within range of array
+                        trace = signal_fp[ts_fp - time_window:ts_fp+time_window]
+                        traces = np.vstack([traces, trace])
+                        traces_tone = np.vstack([traces_tone, trace])
+
+            # Sum Up Events in Prob Tone Array
+            # t = np.arange(-time_window, time_window, 1)*frame_interval # time array for plotting
+            tone_str = 'offer_tone_'+ str(offer_probs[prob-1])
             signals_tone[tone_str] = np.concatenate((signals_tone[tone_str],traces_tone), 0)
 
         # Sum Up Events in Restrnt Array

@@ -113,7 +113,6 @@ def calc_dwell_time_dist(df):
         r_dwellt_median = np.nanmedian(intervals_rwds)
     return [r_dwellt_median, r_dwellt_dist, no_r_dwellt_median, no_r_dwellt_dist]
 
-
 def count_rejections(df):
     # This is the old version of counting rejections
     # This will find timestamps and count where all the "clean" rejections occur.
@@ -143,20 +142,38 @@ def count_rejections(df):
     return [num_rejects, num_no_reward_tones, reject_ts]
 
 def collect_rejection_events(df):
-    # This is the new version of counting rejections
-    # This will find timestamps and count where all the "clean" rejections occur.
-    # By this, we mean the mouse hears offer tone and completely skips the restaurant without entering it.
-    no_reward_codes = [17,29,41,53] # no-reward tone codes - 0% reward tone
-    reward_codes = [20,32,44,56] # reward tone codes - 100% reward tone
+    '''
+    This is the new version of counting rejections
+    Find timestamps and count where all the "clean" rejections occur.
+    '''
+
+    reward_codes_0 = [17, 29, 41, 53]  # no-reward tone codes
+    reward_codes_20 = [18, 30, 42, 54]  # 20pct rewarded tone codesc
+    reward_codes_80 = [19, 31, 43, 55]  # 80pct rewarded tone codes
+    reward_codes_100 = [20, 32, 44, 56]  # reward tone codes
+
     exit_codes = [63,66,69,72] # Exit codes, aka "Sharp" timestamps
     entry_codes = [61,64,67,70] #Entry codes, aka "Sharp"
     accept_codes = [62,65,68,71] #Sharp accept codes
+
     reject_events = pd.DataFrame(columns=['reject_tone_ts','reject_exit_ts','restaurant'])
     num_no_offer_rejects = 0
+
     for rr in [1,2,3,4]:
-        offer_tone_idx = df.index[df.b_code.isin([reward_codes[rr-1]])].values
-        no_offer_tone_idx = df.index[df.b_code.isin([no_reward_codes[rr-1]])].values
-        tone_idx = np.append(offer_tone_idx,no_offer_tone_idx)
+        offer_tone_100_idx = df.index[df.b_code.isin(
+            [reward_codes_100[rr-1]])].values
+        offer_tone_80_idx = df.index[df.b_code.isin(
+            [reward_codes_80[rr-1]])].values
+        offer_tone_20_idx = df.index[df.b_code.isin(
+            [reward_codes_20[rr-1]])].values
+        offer_tone_0_idx = df.index[df.b_code.isin(
+            [reward_codes_0[rr-1]])].values
+
+        tone_idx = np.append(offer_tone_100_idx, offer_tone_80_idx)
+        tone_idx = np.append(tone_idx, offer_tone_20_idx)
+        tone_idx = np.append(tone_idx, offer_tone_0_idx)
+
+
         accept_idx = df.index[df.b_code.isin([accept_codes[rr-1]])].values
         exit_idx = df.index[df.b_code.isin([exit_codes[rr-1]])].values
         entry_idx = df.index[df.b_code.isin([entry_codes[rr-1]])].values
@@ -165,17 +182,16 @@ def collect_rejection_events(df):
                 next_entry_idx = min(entry_idx[entry_idx>event])
                 next_accept_idx = min(accept_idx[accept_idx>event])
                 next_exit_idx = min(exit_idx[exit_idx>event])
-                #print('next entry: ' + str(next_entry_idx))
-                #print('next accept: '+str(next_accept_idx))
-                #print('next exit: ' + str(next_exit_idx))
+
                 reject_ts=[]
                 if next_exit_idx<next_accept_idx:
                     reject_tone_ts = df.time[event]
                     reject_exit_ts = df.time[next_exit_idx]
                     reject_events = reject_events.append({'reject_tone_ts':reject_tone_ts,'reject_exit_ts':reject_exit_ts,'restaurant':rr},ignore_index=True)
-                    if event in no_offer_tone_idx:
+                    if event in offer_tone_0_idx:
                         num_no_offer_rejects+=1
-        num_no_offers = len(df.index[df.b_code.isin(no_reward_codes)].values)
+        num_no_offers = len(df.index[df.b_code.isin(reward_codes_0)].values)
+        # print (num_no_offers)
         if num_no_offers>0:
             pct_no_offer_rejects = num_no_offer_rejects/num_no_offers
         else:

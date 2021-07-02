@@ -9,7 +9,7 @@ import pandas as pd
 from scipy.sparse import diags as spdiags
 from scipy.sparse import linalg as sp_linalg
 from scipy import interpolate, signal
-from packages.photometry_functions import get_dFF
+from .packages.photometry_functions import get_dFF
 # Plotting
 import matplotlib.pyplot as plt
 import seaborn as sns

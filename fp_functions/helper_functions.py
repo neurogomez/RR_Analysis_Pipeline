@@ -260,7 +260,7 @@ def classify_events(df):
             pct_no_offer_rejects, dt_reject, dt_accept,
             data_rr)
 
-def baseline_trace(trace):
+def baseline_trace_median(trace):
     '''
     z-score the FP trace using a median filter
     '''
@@ -326,10 +326,9 @@ def grab_fp_traces(alignment, channel, side, condition, data_fp, data_rr, trigge
     if baseline_method == 'med_filter':
         # Travis Method
         signal_fp = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values
-        signal_fp = baseline_trace(signal_fp)    # Baseline and z-score FP trace
+        signal_fp = baseline_trace_median(signal_fp)    # Baseline and z-score FP trace
         signal_fp_ts = data_fp.time_stamps[data_fp.flag == fp_flag[channel]].values # get TS
         signal_fp_ts = signal_fp_ts[~np.isnan(signal_fp_ts)]  # remove trailing nan
-
     else:
         # Albert Method
         rec_sig = data_fp.get(side_channel)[data_fp.flag == fp_flag[channel]].values

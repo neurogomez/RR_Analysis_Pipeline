@@ -9,9 +9,11 @@ import pandas as pd
 from scipy.sparse import diags as spdiags
 from scipy.sparse import linalg as sp_linalg
 from scipy import interpolate, signal
+from packages.photometry_functions import get_dFF
 # Plotting
 import matplotlib.pyplot as plt
 import seaborn as sns
+from packages.photometry_functions import get_f0_Martianova_jove
 # caiman
 try:
     from caiman.source_extraction.cnmf.deconvolution import GetSn
@@ -29,8 +31,11 @@ except ModuleNotFoundError:
 
 
 def get_probswitch_session_by_condition(folder, group='all', region='NAc', signal='all'):
-    """ Returns lists of session files of different recording type
+    """ Searches through [folder] and find all of probswitch experiment sessions that match the
+    description; Returns lists of session files of different recording type
     :param group: str, expression
+    :param region: str, region of recording
+    :param signal: str, signal type (DA or Ca 05/25/21)
     :param photometry:
     :param choices:
     :param processed:
@@ -86,6 +91,8 @@ def get_prob_switch_all_sessions(folder, groups):
 
 
 def check_FP_contain_dff_method(fp, methods, sig='DA'):
+    """ Utility function that helps check whether the <fp> hdf5 file contains <dff> signals preprocessed.
+    """
     if fp is None:
         return False
     if isinstance(methods, str):
@@ -94,7 +101,7 @@ def check_FP_contain_dff_method(fp, methods, sig='DA'):
         return np.all([f'{sig}/dff/{m}' in hf for m in methods])
 
 
-def get_sources_from_csvs(csvfiles, window=400, tags=None, show=False):
+def get_sources_from_csvs(csvfiles, window=400, aux_times=None, tags=None, show=False):
     """
     Extract sources from a list of csvfiles, with csvfile[0] be channels with cleaniest
     TODO: potentially use the fact that 415 has the same timestamps to speed up the process
@@ -115,9 +122,18 @@ def get_sources_from_csvs(csvfiles, window=400, tags=None, show=False):
             pdf = pd.read_csv(csvfile, delimiter=" ", names=['time', 'calcium'], usecols=[0, 1])
             FP_times[i] = pdf.time.values
             FP_signals[i] = pdf.calcium.values
+        if aux_times:
+            old_zero = FP_times[0][0]
+            if old_zero == aux_times[0][0]:
+                print('WARNING: NO UPDATE, something is up')
+            assert len(FP_times) == len(aux_times), 'MUST BE SAME dim'
+            FP_times = aux_times
+
         if tags is None:
             tags = [f'REC{i}' for i in range(len(csvfiles))]
     except:
+        print('OOPPS')
+        # TODO: aux_time input potentially needed
         FP_times = [None] * len(csvfiles) * 2
         FP_signals = [None] * len(csvfiles) * 2
         for i in range(len(csvfiles)):
@@ -203,6 +219,72 @@ def file_folder_path(f):
         return f[:f.rfind(symbol)]
 
 
+def summarize_sessions(data_root, implant_csv, save_path, sort_key='aID'):
+    """
+    implant_csv: pd.DataFrame from implant csv file
+    """
+    # add region of implant, session number, signal quality
+    # input a list of names implant locations
+    # "/A2A-15B-B_RT_20200229_learning-switch-2_p39.mat" supposed to be 139
+    # sorting with p notation mess up if p is less 100\
+    # bug /D1-27H_LT_20200229_ToneSamp_p89.mat read as 022
+    alles = {'animal': [], 'aID':[], 'session': [], 'date': [], 'ftype':[],
+             'age':[], 'FP': [], 'region': [], 'note': []}
+
+    implant_lookup = {}
+    for i in range(len(implant_csv)):
+
+        animal_name = implant_csv.loc[i, 'Name']
+        if animal_name and (str(animal_name) != 'nan'):
+            LH_target = implant_csv.loc[i, 'LH Target']
+            RH_target = implant_csv.loc[i, 'RH Target']
+            print(animal_name)
+            name_first, name_sec = animal_name.split(' ')
+            name_first = "-".join(name_first.split('-')[:2])
+            implant_lookup[name_first+'_'+name_sec] = {'LH': LH_target, 'RH': RH_target}
+
+    for f in os.listdir(data_root):
+        options = decode_from_filename(f)
+        if options is None:
+            pass
+            #print(f, "ALERT")
+        elif ('FP_' in f) and ('FP_' not in options['session']):
+            print(f, options['session'])
+        else:
+            for q in ['animal', 'ftype', 'session']:
+                alles[q].append(options[q])
+
+            name_first2, name_sec2 = options['animal'].split('_')
+            name_first2 = "-".join(name_first2.split('-')[:2])
+            aID = name_first2+"_"+name_sec2
+            alles['aID'].append(aID)
+            alles['date'].append(options['T'])
+            opts = options['session'].split("_FP_")
+            alles['age'].append(opts[0])
+            if len(opts) > 1:
+                alles['FP'].append(opts[1])
+                if aID not in implant_lookup:
+                    print('skipping', options, )
+                    alles['region'].append('')
+                else:
+                    alles['region'].append(implant_lookup[aID][opts[1]])
+            else:
+                alles['FP'].append("")
+                alles['region'].append('')
+            alles['note'].append(options['DN'] + options['SP'])
+
+    apdf = pd.DataFrame(alles)
+    sorted_pdf = apdf.sort_values(['date', 'session'], ascending=True)
+    sorted_pdf['S_no'] = 0
+    new_pdfs = []
+    for anim in sorted_pdf[sort_key].unique():
+        tempslice = sorted_pdf[sorted_pdf[sort_key] == anim]
+        sorted_pdf.loc[sorted_pdf[sort_key] == anim, 'S_no'] = np.arange(1, len(tempslice)+1)
+    #final_pdf = pd.concat(new_pdfs, axis=0)
+    final_pdf = sorted_pdf
+    final_pdf.to_csv(os.path.join(save_path, f"exper_list_final_{sort_key}.csv"), index=False)
+
+
 def decode_from_filename(filename):
     """
     Takes in filenames of the following formats and returns the corresponding file options
@@ -225,6 +307,8 @@ timestamps: **Drug-ID_Earpoke_DNAME_Hemi_Age_(NIDAQ_Ai0_timestamps)Time[special]
                       r"?P<A>p\d+)(?P<SP>[-&\w]*)\.mat", filename)
     # case processed behavior
     mPBMat = re.match(r"^(?P<GEN>\w{2,3})-(?P<ID>\d{2,}[-\w*]*)_(?P<EP>[A-Z]{2})_"
+                      r"(?P<A>p\d+)(?P<S>_session\d+_|_?)(?P<H>FP_[LR]H)_processed_data.mat", filename)
+    mPBOMat = re.match(r"^(?P<GEN>\w{2,3})-(?P<ID>\d{2,}[-\w*]*)_(?P<EP>[A-Z]{2})_"
                       r"(?P<A>p\d+)(?P<S>_session\d+_|_?)(?P<H>FP_[LR]H)_behavior_data.mat", filename)
     mFPMat = re.match(r"^(?P<GEN>\w{2,3})-(?P<ID>\d{2,}[-\w*]*)_(?P<EP>[A-Z]{2})_"
                       r"(?P<A>p\d+)(?P<S>_session\d+_|_?)(?P<H>FP_[LR]H).hdf5", filename)
@@ -245,7 +329,11 @@ timestamps: **Drug-ID_Earpoke_DNAME_Hemi_Age_(NIDAQ_Ai0_timestamps)Time[special]
             options['H'] = sp_match.group(1)
     elif mPBMat is not None:
         options = mPBMat.groupdict()
-        ftype = "behavior"
+        ftype = "processed"
+        oS = options["S"]
+    elif mPBOMat is not None:
+        options = mPBOMat.groupdict()
+        ftype = "behavior_old"
         oS = options["S"]
     elif mFPMat is not None:
         options = mFPMat.groupdict()
@@ -316,7 +404,7 @@ def encode_to_filename(folder, animal, session, ftypes="processed_all"):
     if ftypes == "raw all":
         ftypes = ["exper", "bin_mat", "green", "red"]
     elif ftypes == "processed_all":
-        ftypes = ["behavior", "green", "red", "FP"]
+        ftypes = ["processed", "green", "red", "FP"]
     elif isinstance(ftypes, str):
         ftypes = [ftypes]
     results = {ft: None for ft in ftypes}
@@ -422,6 +510,7 @@ def raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method='robu
     :param kwargs:
     :return:
     """
+    # TODO: figure out the best policy for removal currently no removal
     # TODO: More in-depth analysis of the best baselining approach with quantitative metrics
     bms = baseline_method.split('_')
     fast = False
@@ -435,7 +524,12 @@ def raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method='robu
     elif baseline_method.startswith('perc'):
         pc = int(baseline_method[4:])
         f0 = percentile_filter(rec_time, rec_sig, perc=pc, **kwargs)
-    elif baseline_method == 'isobestic':
+    elif baseline_method == 'isosbestic':
+        # cite jove paper
+        reference = interpolate.interp1d(iso_time, iso_sig, fill_value='extrapolate')(rec_time)
+        signal = rec_sig
+        f0 = get_f0_Martianova_jove(reference, signal)
+    elif baseline_method == 'isosbestic_old':
         dc_rec, dc_iso = np.mean(rec_sig), np.mean(iso_sig)
         dm_rec_sig, dm_iso_sig = rec_sig - dc_rec, iso_sig - dc_iso
         # TODO: implement impulse based optimization
@@ -445,7 +539,7 @@ def raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method='robu
             f0 = interpolate.interp1d(iso_time, f0_iso, fill_value='extrapolate')(rec_time)
     else:
         raise NotImplementedError(f"Unknown baseline method {baseline_method}")
-    dff = (rec_sig - f0) / (f0 + 1e-16)
+    dff = (rec_sig - f0) / (f0 + np.mean(rec_sig)+1e-16) # arbitrary DC shift to avoid issue
     return (dff - np.mean(dff)) / np.std(dff, ddof=1) if zscore else dff
 
 
@@ -532,7 +626,14 @@ def percentile_filter(xs, ys, window=200, perc=None, **kwargs):
     return scipy.ndimage.percentile_filter(ys, perc, window)
 
 
+def isosbestic_baseline_correct_old(xs, ys, window=200, perc=50, **kwargs):
+    # TODO: this is the greedy method with only the mean estimation
+    #return f0_filter_sig(xs, ys, method=method, window=window)[:, 0]
+    return percentile_filter(xs, ys, window, perc)
+
+
 def isosbestic_baseline_correct(xs, ys, window=200, perc=50, **kwargs):
+    # TODO: current use simplest directly import zdff method but want to rigorously test baselining effect
     # TODO: this is the greedy method with only the mean estimation
     #return f0_filter_sig(xs, ys, method=method, window=window)[:, 0]
     return percentile_filter(xs, ys, window, perc)
@@ -958,3 +1059,10 @@ class ProgressBar:
         print(f'Skipping {task_name}, estimated run time left: {self.tstr(ETA)}')
         if ETA == 0.:
             print(f'Finished all {self.N} tasks. Total Run Time: {self.tstr(time.time()-self.start)}.')
+
+
+########################################################
+#################### Miscellaneous #####################
+########################################################
+def df_col_is_str(df, c):
+    return df[c].dtype == object and isinstance(df.iloc[0][c], str)

@@ -98,6 +98,9 @@ def load_behavior_FP(path):
             # Pull RR Day from filename
             pattern = 'RR_FP_Dayp...' #eg) Day012
             match = re.findall(pattern,file)
+            # TODO: fix the match doesnt work with RR_Day222_epoch-1_ID-RRM003_2021-06-29T12_57_44
+            if not match:
+                continue
             day = float(match[0][-3:])
             # Pull epoch from filename
             pattern = 'epoch-.' # eg) epoch-1

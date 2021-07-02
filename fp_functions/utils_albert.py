@@ -13,7 +13,7 @@ from packages.photometry_functions import get_dFF
 # Plotting
 import matplotlib.pyplot as plt
 import seaborn as sns
-from packages.photometry_functions import get_f0_Martianova_jove
+from .packages.photometry_functions import get_f0_Martianova_jove
 # caiman
 try:
     from caiman.source_extraction.cnmf.deconvolution import GetSn

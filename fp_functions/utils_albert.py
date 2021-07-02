@@ -539,7 +539,8 @@ def raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method='robu
             f0 = interpolate.interp1d(iso_time, f0_iso, fill_value='extrapolate')(rec_time)
     else:
         raise NotImplementedError(f"Unknown baseline method {baseline_method}")
-    dff = (rec_sig - f0) / (f0 + np.mean(rec_sig)+1e-16) # arbitrary DC shift to avoid issue
+    #dff = (rec_sig - f0) / (f0 + np.mean(rec_sig)+1e-16) # arbitrary DC shift to avoid issue
+    dff = (rec_sig - f0)
     return (dff - np.mean(dff)) / np.std(dff, ddof=1) if zscore else dff
 
 

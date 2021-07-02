@@ -529,7 +529,7 @@ def raw_fluor_to_dff(rec_time, rec_sig, iso_time, iso_sig, baseline_method='robu
         reference = interpolate.interp1d(iso_time, iso_sig, fill_value='extrapolate')(rec_time)
         signal = rec_sig
         f0 = get_f0_Martianova_jove(reference, signal)
-        temp_val = get_zdFF(reference,signal,smooth_win=10,remove=200,lambd=5e4,porder=1,itermax=50)
+        temp_val = get_zdFF(reference,signal)
         return (temp_val - np.mean(temp_val)) / np.std(temp_val, ddof=1) if zscore else temp_val
     elif baseline_method == 'isosbestic_old':
         dc_rec, dc_iso = np.mean(rec_sig), np.mean(iso_sig)

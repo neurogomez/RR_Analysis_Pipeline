@@ -14,7 +14,7 @@ Reference:
 import numpy as np
 from sklearn.linear_model import Lasso
 
-def get_zdFF(reference,signal,smooth_win=10,remove=200,lambd=5e4,porder=1,itermax=50): 
+def get_zdFF(reference,signal,smooth_win=40,remove=0,lambd=5e4,porder=1,itermax=50):
   '''
   Calculates z-score dF/F signal based on fiber photometry calcium-idependent 
   and calcium-dependent signals

@@ -19,7 +19,8 @@ def get_data_directories(fp_folder, behavior_folder, mouse_id, day):
     '''
     # fp_folder = '/Volumes/Wilbrecht_file_server/Restaurant Row/Data/fp_data/Cohort 3 D1'
     # behavior_folder = '/Volumes/Wilbrecht_file_server/Restaurant Row/Data/rr_data/Cohort 3 D1'
-
+    fp_file = None
+    rr_file, fpts_file = None, None
     for file in os.listdir(fp_folder):
         day_check = []
         mouse_id_check = []
@@ -30,8 +31,13 @@ def get_data_directories(fp_folder, behavior_folder, mouse_id, day):
             if not not match:
                 mouse_id_check = match[0][3:]
             # Pull RR Day from filename
-            pattern = 'Dayp...'
-            match = re.findall(pattern, file)
+            pattern1 = 'Dayp...'
+            pattern2 = 'Day...'
+            match = None
+            if re.findall(pattern1, file):
+                match = re.findall(pattern1, file)
+            elif re.findall(pattern2, file):
+                match = re.findall(pattern2, file)
             if not not match:
                 day_check = int(match[0][-3:])
             if ((not not mouse_id_check) & (not not day_check)):
@@ -47,8 +53,13 @@ def get_data_directories(fp_folder, behavior_folder, mouse_id, day):
             if not not match:
                 mouse_id_check = match[0][3:]
             # Pull RR Day from filename
-            pattern = 'Dayp...'
-            match = re.findall(pattern, file)
+            pattern1 = 'Dayp...'
+            pattern2 = 'Day...'
+            match = None
+            if re.findall(pattern1, file):
+                match = re.findall(pattern1, file)
+            elif re.findall(pattern2, file):
+                match = re.findall(pattern2, file)
             if not not match:
                 day_check = int(match[0][-3:])
             if ((not not mouse_id_check) & (not not day_check)):
@@ -64,8 +75,13 @@ def get_data_directories(fp_folder, behavior_folder, mouse_id, day):
             if not not match:
                 mouse_id_check = match[0][3:]
             # Pull RR Day from filename
-            pattern = 'Dayp...'
-            match = re.findall(pattern, file)
+            pattern1 = 'Dayp...'
+            pattern2 = 'Day...'
+            match = None
+            if re.findall(pattern1, file):
+                match = re.findall(pattern1, file)
+            elif re.findall(pattern2, file):
+                match = re.findall(pattern2, file)
             if not not match:
                 day_check = int(match[0][-3:])
             if ((not not mouse_id_check) & (not not day_check)):

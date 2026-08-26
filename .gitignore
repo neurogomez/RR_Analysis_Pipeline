@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Excel lock files
+~$*.xlsx
+
+# Local-only: exploratory work by a labmate (Travis), kept for personal
+# reference rather than published (see README for what supersedes it)
+travis_stuff/
+
+# Local-only: cleanup staging
+_to_delete/

@@ -207,7 +207,12 @@ def get_fp_aligned_traces(alignment, channel, side, condition, data_fp, data_rr,
 
 def get_fp_plots_travis(animal, day, alignment, sg, side, condition, split=False, plot_flag='mean'):
     '''
-    function for plotting travis' data 
+    function for plotting travis' data
+
+    NOTE: this reads a different cohort's data (Travis's, hardcoded lab
+    server path below), not the RRM003/RRM004 data bundled in Data/ in this
+    repo. Not used by the published notebooks; kept for continuity with the
+    rest of the pipeline's function set.
     '''
 
 

@@ -19,3 +19,6 @@ travis_stuff/
 
 # Local-only: cleanup staging
 _to_delete/
+
+# Private, unpublished data: not to be committed
+Data/
